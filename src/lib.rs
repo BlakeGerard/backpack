@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Item {
     rows: u32,
     cols: u32,
@@ -19,7 +19,7 @@ impl Item {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PackedItem {
     r: u32,
     c: u32,
@@ -65,6 +65,11 @@ impl PackedItem {
     pub fn transpose(&mut self) {
         std::mem::swap(&mut self.item.rows, &mut self.item.cols);
     }
+
+    pub fn move_to(&mut self, dst: (u32, u32)) {
+        self.r = dst.0;
+        self.c = dst.1;
+    }
 }
 
 #[derive(Debug)]
@@ -100,16 +105,7 @@ impl Pack {
         None
     }
 
-    fn grab_item_mut(&mut self, loc: (u32, u32)) -> Option<&mut PackedItem> {
-        for packed_item in &mut self.items {
-            if packed_item.contains(loc) {
-                return Some(packed_item);
-            }
-        }
-        None
-    }
-
-    fn grab_index(&self, loc: (u32, u32)) -> Option<usize> {
+    fn grab_item_index(&self, loc: (u32, u32)) -> Option<usize> {
         for (idx, packed_item) in self.items.iter().enumerate() {
             if packed_item.contains(loc) {
                 return Some(idx);
@@ -127,6 +123,9 @@ impl Pack {
 
     fn item_placement_intersects_contents(&self, item: &PackedItem) -> bool {
         for packed_item in &self.items {
+            if item == packed_item {
+                continue;
+            }
             if item.intersects(&packed_item) {
                 return true;
             }
@@ -157,22 +156,20 @@ impl Pack {
     }
 
     pub fn remove_item(&mut self, loc: (u32, u32)) -> Option<PackedItem> {
-        if let Some(idx) = self.grab_index(loc) {
+        if let Some(idx) = self.grab_item_index(loc) {
             return Some(self.items.swap_remove(idx));
         }
         None
     }
 
     pub fn transpose_item(&mut self, loc: (u32, u32)) -> Result<(), String> {
-        if let Some(idx) = self.grab_index(loc) {
+        if let Some(idx) = self.grab_item_index(loc) {
             // Do the tranposition.
-            let item = self.items.get_mut(idx).unwrap();
-            item.transpose();
+            self.items[idx].transpose();
 
-            // If the tranposition results in invalid placement,
-            // revert and return an error.
+            // Undo the transposition if placement is invalid.
             if self.item_placement_is_invalid(&self.items[idx]) {
-                item.transpose();
+                self.items[idx].transpose();
                 return Err("Invalid transposition.".to_string());
             }
         }
@@ -180,31 +177,15 @@ impl Pack {
     }
 
     pub fn move_item(&mut self, src: (u32, u32), dst: (u32, u32)) -> Result<(), String> {
-        // If an item is not at src, none of this matters.
-        if let Some(idx) = self.grab_index(src) {
-            // Invalid loc for this Pack.
-            if dst.0 > self.rows - 1 || dst.1 > self.cols - 1 {
-                return Err("Invalid location".to_string());
-            }
+        if let Some(idx) = self.grab_item_index(src) {
+            // Do the move.
+            self.items[idx].move_to(dst);
 
-            let target = self.items.get_mut(idx).unwrap();
-
-            // Item is too large for this Pack.
-            if dst.0 + target.item.rows > self.rows || dst.1 + target.item.cols > self.cols {
-                return Err("Item is too large for this Pack.".to_string());
+            // Undo the move if placement is invalid.
+            if self.item_placement_is_invalid(&self.items[idx]) {
+                self.items[idx].move_to(src);
+                return Err("Invalid move".to_string());
             }
-
-            for jdx in 0..self.items.len() {
-                if idx == jdx {
-                    continue;
-                }
-                if self.items[idx].intersects(&self.items[jdx]) {
-                    return Err("Tranpose would cause item intersection.".to_string());
-                }
-            }
-            let target = self.items.get_mut(idx).unwrap();
-            target.r = dst.0;
-            target.c = dst.1;
         }
         Ok(())
     }

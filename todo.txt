@@ -8,9 +8,9 @@ Basic Functionality
 [*] "get" an item (& or &mut) "under" the coordinate.
 [*] tranpose an item, detecting invalid states.
 [*] Print the Pack.
-[ ] Remove an item under a coordinate.
-[ ] Move an item under a coordinate.
-[ ] Refactor
+[*] Remove an item under a coordinate.
+[*] Move an item under a coordinate.
+[%] Refactor
 
 Next Steps
 [ ] Make event-loop for the user to issue commands.
