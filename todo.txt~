@@ -1,0 +1,13 @@
+Basic Functionality
+[*] Create the base Item and Pack structs.
+[*] Add items to the pack by coordinate
+[*] Detect invalid coordinates
+[*] Detect item that would exceed the bounds of the Pack
+    if placed at the given coordinate.
+[*] Detect item intersection.
+[*] "get" an item (& or &mut) "under" the coordinate.
+[*] tranpose an item, detecting invalid states.
+[*] Print the Pack
+[ ] Remove an item under a coordinate.
+[ ] Move an item under a coordinate.
+---

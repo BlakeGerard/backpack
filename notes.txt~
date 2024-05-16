@@ -1,0 +1,77 @@
+
+pack {
+  rows: 1,
+  cols: 1,
+  items: [],
+}
+
+item {
+  rows: 1,
+  cols: 1,
+  shape: '.',
+}
+
+Need a way to test if an item that is a candidate
+for addition into the pack at a certain location
+conflicts with any other shapes.
+    a
+    +
+b * *+ * *
+    +
+    +
+
+a {            b {
+  rows: 4,       rows: 1,
+  cols: 1,       cols: 4,
+}              }
+
+a -> (r: 0, c: 1)
+b -> (r: 1, c: 0)
+
+
+     (r, c) ------------ (r, c + cols)
+     |                   |
+     |                   |
+     |                   |
+     (r + rows, c) ----- (r + rows, c + cols)
+  
+I think we start with the column:
+Note that if rectX starts in column 'c', rectY will intersect
+with rectX if: rectX.c <= rectY.c <= rectX.c + rectX.cols
+
+Conditions:
+r <= r' + rows' <= r + rows AND
+c <= c' + cols' <= c + cols
+
+a.r <= b.r + b.rows <= a.r + a.rows
+a.c <= b.c + b.cols <= a.c + a.cols
+
+
+I would like to be able to "grab" an item by providing a single
+coordinate and retrieving a reference to the item occupying
+that coordinate.
+
+pub fn grab(&self, loc: (u32, u32)) -> Option<&Item>
+
+With the current format, this would require:
+  for item in items:
+    if item.contains(loc):
+      return Some(&item)
+  return None
+
+It would be nice if we could somehow provide a mapping from
+(r, c) -> index into the list of items.
+
+So if we did
+add_item(Item{1, 3}, (0, 0))
+add_item(Item(2, 2}, (1, 0))
+we would have:
+(0, 0) -> 0
+(0, 1) -> 0
+(0, 2) -> 0
+(1, 0) -> 1
+(1, 1) -> 1
+(2, 0) -> 1
+(2, 1) -> 1
+
+Does it make more sense to just simulate the pack with a 2D array?

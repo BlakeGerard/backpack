@@ -1,0 +1,341 @@
+#[derive(Debug, Clone)]
+pub struct Item {
+    rows: u32,
+    cols: u32,
+    symbol: char,
+}
+
+impl Item {
+    pub fn new(rows: u32, cols: u32, symbol: char) -> Self {
+        let mut rows = rows;
+        let mut cols = cols;
+        if rows == 0 {
+            rows = 1;
+        }
+        if cols == 0 {
+            cols = 1;
+        }
+        Item { rows, cols, symbol }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PackedItem {
+    r: u32,
+    c: u32,
+    item: Item,
+}
+
+impl PackedItem {
+    pub fn from(r: u32, c: u32, item: Item) -> Self {
+        Self { r, c, item }
+    }
+
+    pub fn symbol(&self) -> char {
+        self.item.symbol
+    }
+
+    pub fn intersects(&self, other: &Self) -> bool {
+        if
+        // self is entirely to the left of other.
+        self.c + self.item.cols <= other.c
+        // self is entirely to the right of other.
+        || self.c >= other.c + other.item.cols
+        // self is entirely above other
+        || self.r + self.item.rows <= other.r
+        // self is entirely below other
+        || self.r >= other.r + other.item.rows
+        {
+            return false;
+        }
+        true
+    }
+
+    pub fn contains(&self, loc: (u32, u32)) -> bool {
+        if self.r <= loc.0
+            && loc.0 < self.r + self.item.rows
+            && self.c <= loc.1
+            && loc.1 < self.c + self.item.cols
+        {
+            return true;
+        }
+        false
+    }
+
+    pub fn transpose(&mut self) {
+        std::mem::swap(&mut self.item.rows, &mut self.item.cols);
+    }
+}
+
+#[derive(Debug)]
+pub struct Pack {
+    rows: u32,
+    cols: u32,
+    items: Vec<PackedItem>,
+}
+
+impl Pack {
+    pub fn new(rows: u32, cols: u32) -> Self {
+        let mut rows = rows;
+        let mut cols = cols;
+        if rows == 0 {
+            rows = 1;
+        }
+        if cols == 0 {
+            cols = 1;
+        }
+        Pack {
+            rows,
+            cols,
+            items: Vec::new(),
+        }
+    }
+
+    pub fn grab(&self, loc: (u32, u32)) -> Option<&PackedItem> {
+        for packed_item in &self.items {
+            if packed_item.r <= loc.0
+                && loc.0 < packed_item.r + packed_item.item.rows
+                && packed_item.c <= loc.1
+                && loc.1 < packed_item.c + packed_item.item.cols
+            {
+                return Some(&packed_item);
+            }
+        }
+        None
+    }
+
+    pub fn grab_mut(&mut self, loc: (u32, u32)) -> Option<&mut PackedItem> {
+        for packed_item in &mut self.items {
+            if packed_item.contains(loc) {
+                return Some(packed_item);
+            }
+        }
+        None
+    }
+
+    fn grab_index(&self, loc: (u32, u32)) -> Option<u32> {
+        for (idx, packed_item) in self.items.iter().enumerate() {
+            if packed_item.contains(loc) {
+                return Some(idx as u32);
+            }
+        }
+        None
+    }
+
+    pub fn add_item(&mut self, item: Item, loc: (u32, u32)) -> Result<(), String> {
+        // Invalid loc for this Pack.
+        if loc.0 > self.rows - 1 || loc.1 > self.cols - 1 {
+            return Err("Invalid location".to_string());
+        }
+
+        // Item is too large for this Pack.
+        if loc.0 + item.rows > self.rows || loc.1 + item.cols > self.cols {
+            return Err("Item is too large for this Pack.".to_string());
+        }
+
+        let tentative = PackedItem::from(loc.0, loc.1, item);
+
+        // Item overlaps other items.
+        for packed_item in &self.items {
+            if tentative.intersects(&packed_item) {
+                return Err("Item intersects with an existing item".to_string());
+            }
+        }
+
+        self.items.push(tentative);
+        Ok(())
+    }
+
+    pub fn transpose_item(&mut self, loc: (u32, u32)) -> Result<(), String> {
+        if let Some(idx) = self.grab_index(loc) {
+            // Do the tranposition.
+            self.items.get_mut(idx as usize).unwrap().transpose();
+
+            // Check if the tranposed item intersects with any other packed item.
+            // If so, undo the tranposition.
+            for jdx in 0..self.items.len() {
+                if idx == jdx as u32 {
+                    continue;
+                }
+                if self.items[idx as usize].intersects(&self.items[jdx]) {
+                    self.items.get_mut(idx as usize).unwrap().transpose();
+                    return Err("Tranpose would cause item intersection.".to_string());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn remove_item(&mut self, loc: (u32, u32)) -> Option<PackedItem> {
+        if let Some(index) = self.grab_index(loc) {
+            return Some(self.items.swap_remove(index as usize));
+        }
+        None
+    }
+
+    pub fn move_item(&mut self, src: (u32, u32), dst: (u32, u32)) -> Result<(), String> {
+        // If an item is not at src, none of this matters.
+        if let Some(idx) = self.grab_index(src) {
+            // Invalid loc for this Pack.
+            if dst.0 > self.rows - 1 || dst.1 > self.cols - 1 {
+                return Err("Invalid location".to_string());
+            }
+
+            let target = self.items.get_mut(idx as usize).unwrap();
+
+            // Item is too large for this Pack.
+            if dst.0 + target.item.rows > self.rows || dst.1 + target.item.cols > self.cols {
+                return Err("Item is too large for this Pack.".to_string());
+            }
+
+            for jdx in 0..self.items.len() {
+                if idx == jdx as u32 {
+                    continue;
+                }
+                if self.items[idx as usize].intersects(&self.items[jdx]) {
+                    return Err("Tranpose would cause item intersection.".to_string());
+                }
+            }
+            let target = self.items.get_mut(idx as usize).unwrap();
+            target.r = dst.0;
+            target.c = dst.1;
+        }
+        Ok(())
+    }
+}
+
+use std::fmt;
+impl fmt::Display for Pack {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for r in 0..self.rows {
+            for c in 0..self.cols {
+                let mut next_symbol: char = ' ';
+                if let Some(packed_item) = self.grab((r, c)) {
+                    next_symbol = packed_item.symbol();
+                }
+                write!(f, "|{}", next_symbol)?;
+            }
+            write!(f, "|\n")?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_1x1_item_to_1x1_pack() {
+        let mut pack = Pack::new(1, 1);
+        let pebble = Item::new(1, 1, '.');
+
+        let result = pack.add_item(pebble, (0, 0));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn add_item_with_out_of_bounds_coordinates_is_an_error() {
+        let mut pack = Pack::new(1, 1);
+        let pebble = Item::new(1, 1, '.');
+
+        let result = pack.add_item(pebble, (1, 0));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn add_item_intersecting_existing_item_is_an_error() {
+        let mut pack = Pack::new(3, 3);
+        let stick = Item::new(1, 2, '*');
+        let stone = Item::new(2, 2, '@');
+
+        let result = pack.add_item(stick, (0, 0));
+        assert!(result.is_ok());
+
+        let result = pack.add_item(stone, (0, 0));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn add_item_that_exceeds_pack_size_is_an_error() {
+        let mut pack = Pack::new(1, 1);
+        let cat = Item::new(3, 2, 'c');
+
+        let result = pack.add_item(cat, (0, 0));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn tranpose_item_valid_transposition_succeeds() {
+        let mut pack = Pack::new(3, 3);
+        let stick = Item::new(1, 3, '*');
+
+        let result = pack.add_item(stick, (0, 0));
+        assert!(result.is_ok());
+
+        let result = pack.transpose_item((0, 0));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn transpose_item_causing_intersection_is_an_error() {
+        let mut pack = Pack::new(3, 3);
+        let stick = Item::new(1, 3, '*');
+        let stone = Item::new(1, 1, '@');
+
+        let result = pack.add_item(stick, (0, 0));
+        assert!(result.is_ok());
+
+        let result = pack.add_item(stone, (1, 0));
+        assert!(result.is_ok());
+
+        let result = pack.transpose_item((0, 0));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn remove_item_from_unoccupied_space_returns_none() {
+        let mut pack = Pack::new(3, 3);
+        let stone = Item::new(1, 1, '*');
+
+        let result = pack.add_item(stone, (0, 0));
+        assert!(result.is_ok());
+
+        let removed = pack.remove_item((1, 1));
+        assert!(removed.is_none());
+    }
+
+    #[test]
+    fn remove_item_at_occupied_location_returns_some_packed_item() {
+        let mut pack = Pack::new(3, 3);
+        let stone = Item::new(1, 1, '*');
+
+        let result = pack.add_item(stone.clone(), (0, 0));
+        assert!(result.is_ok());
+
+        let _expected = Some(PackedItem {
+            r: 0,
+            c: 0,
+            item: Item {
+                rows: 1,
+                cols: 1,
+                symbol: '*',
+            },
+        });
+        let removed = pack.remove_item((0, 0));
+
+        assert!(matches!(removed, _expected));
+    }
+
+    #[test]
+    fn move_item_to_out_of_bounds_location_is_an_error() {
+        let mut pack = Pack::new(1, 1);
+        let stone = Item::new(1, 1, '*');
+
+        let result = pack.add_item(stone.clone(), (0, 0));
+        assert!(result.is_ok());
+
+        let result = pack.move_item((0, 0), (5, 5));
+        assert!(result.is_err());
+    }
+}
