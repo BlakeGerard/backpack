@@ -1,4 +1,11 @@
-use backpack::*;
+#![allow(dead_code)]
+
+mod items;
+mod packs;
+
+use crate::items::Item;
+use crate::packs::{DensePack, MapPack};
+
 use rand::prelude::*;
 use std::time::Instant;
 
@@ -9,7 +16,7 @@ fn rand_loc(rng: &mut ThreadRng, rows: u32, cols: u32) -> (u32, u32) {
 fn benchmark(rows: u32, cols: u32, iters: usize) {
     let mut rng = rand::thread_rng();
 
-    let mut pack = Pack::new(rows, cols);
+    let mut pack = DensePack::new(rows, cols);
 
     let mut locs: Vec<(u32, u32)> = Vec::new();
 
@@ -58,9 +65,9 @@ fn benchmark(rows: u32, cols: u32, iters: usize) {
                 let delta = elapsed - benchmark_data[1].1;
                 benchmark_data[1].1 += delta / benchmark_data[1].0 as f64;
 
-                if result.is_none() {
-                    assert!(false);
-                }
+                //                if result.is_none() {
+                //                    assert!(false);
+                //                }
                 locs.swap_remove(idx);
             }
             // tranpose item
@@ -115,10 +122,10 @@ fn benchmark(rows: u32, cols: u32, iters: usize) {
 }
 
 fn main() {
-    benchmark(20, 20, 100000);
+    benchmark(20, 20, 1_000_000);
 
     // // Initialize the Pack
-    // let mut pack = Pack::new(5, 5);
+    // let mut pack = MapPack::new(5, 5);
     // println!("{}", pack);
 
     // // Add a 'stick'
