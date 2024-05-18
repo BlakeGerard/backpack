@@ -3,14 +3,14 @@
 mod items;
 mod packs;
 
-use crate::items::Item;
+use crate::items::{Item, Loc};
 use crate::packs::{DensePack, MapPack};
 
 use rand::prelude::*;
 use std::time::Instant;
 
-fn rand_loc(rng: &mut ThreadRng, rows: u32, cols: u32) -> (u32, u32) {
-    (rng.gen_range(0..rows), rng.gen_range(0..cols))
+fn rand_loc(rng: &mut ThreadRng, rows: u32, cols: u32) -> Loc {
+    Loc::new(rng.gen_range(0..rows), rng.gen_range(0..cols))
 }
 
 fn benchmark(rows: u32, cols: u32, iters: usize) {
@@ -18,7 +18,7 @@ fn benchmark(rows: u32, cols: u32, iters: usize) {
 
     let mut pack = DensePack::new(rows, cols);
 
-    let mut locs: Vec<(u32, u32)> = Vec::new();
+    let mut locs: Vec<Loc> = Vec::new();
 
     let mut benchmark_data: [(u128, f64); 4] = [(0, 0.0); 4];
 
@@ -65,9 +65,6 @@ fn benchmark(rows: u32, cols: u32, iters: usize) {
                 let delta = elapsed - benchmark_data[1].1;
                 benchmark_data[1].1 += delta / benchmark_data[1].0 as f64;
 
-                //                if result.is_none() {
-                //                    assert!(false);
-                //                }
                 locs.swap_remove(idx);
             }
             // tranpose item
@@ -118,14 +115,14 @@ fn benchmark(rows: u32, cols: u32, iters: usize) {
     for (i, entry) in benchmark_data.iter().enumerate() {
         println!("{}: {}, {}", i, entry.0, entry.1);
     }
-    println!("Final state:\n{}", pack);
+    //    println!("Final state:\n{}", pack);
 }
 
 fn main() {
     benchmark(20, 20, 1_000_000);
 
     // // Initialize the Pack
-    // let mut pack = MapPack::new(5, 5);
+    // let mut pack = GridPack::new(5, 5);
     // println!("{}", pack);
 
     // // Add a 'stick'

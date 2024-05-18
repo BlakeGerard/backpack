@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Item {
     rows: u32,
     cols: u32,
@@ -15,28 +15,71 @@ impl Item {
         if cols == 0 {
             cols = 1;
         }
-        Item { rows, cols, symbol }
+        Item {
+            rows: rows,
+            cols: cols,
+            symbol: symbol,
+        }
+    }
+
+    pub fn rows(&self) -> u32 {
+        self.rows
+    }
+
+    pub fn cols(&self) -> u32 {
+        self.cols
+    }
+
+    pub fn symbol(&self) -> char {
+        self.symbol
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Copy)]
+pub struct Loc {
+    row: u32,
+    col: u32,
+}
+
+impl Loc {
+    pub fn new(row: u32, col: u32) -> Self {
+        Loc { row, col }
+    }
+
+    pub fn row(&self) -> u32 {
+        self.row
+    }
+
+    pub fn col(&self) -> u32 {
+        self.col
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PackedItem {
-    r: u32,
-    c: u32,
+    loc: Loc,
     item: Item,
 }
 
 impl PackedItem {
-    pub fn new(r: u32, c: u32, item: Item) -> Self {
-        Self { r, c, item }
+    pub fn new(loc: Loc, item: Item) -> Self {
+        Self { loc, item }
     }
 
-    pub fn r(&self) -> u32 {
-        self.r
+    pub fn loc(&self) -> Loc {
+        self.loc.clone()
     }
 
-    pub fn c(&self) -> u32 {
-        self.c
+    pub fn item(&self) -> Item {
+        self.item
+    }
+
+    pub fn row(&self) -> u32 {
+        self.loc.row
+    }
+
+    pub fn col(&self) -> u32 {
+        self.loc.col
     }
 
     pub fn rows(&self) -> u32 {
@@ -54,24 +97,24 @@ impl PackedItem {
     pub fn intersects(&self, other: &Self) -> bool {
         if
         // self is entirely to the left of other.
-        self.c + self.item.cols <= other.c
+        self.col() + self.cols() <= other.col()
         // self is entirely to the right of other.
-        || self.c >= other.c + other.item.cols
+        || self.col() >= other.col() + other.cols()
         // self is entirely above other
-        || self.r + self.item.rows <= other.r
+        || self.row() + self.rows() <= other.row()
         // self is entirely below other
-        || self.r >= other.r + other.item.rows
+        || self.row() >= other.row() + other.rows()
         {
             return false;
         }
         true
     }
 
-    pub fn contains(&self, loc: (u32, u32)) -> bool {
-        if self.r <= loc.0
-            && loc.0 < self.r + self.item.rows
-            && self.c <= loc.1
-            && loc.1 < self.c + self.item.cols
+    pub fn contains(&self, loc: &Loc) -> bool {
+        if self.row() <= loc.row
+            && loc.row < self.row() + self.rows()
+            && self.col() <= loc.col
+            && loc.col < self.col() + self.cols()
         {
             return true;
         }
@@ -82,8 +125,7 @@ impl PackedItem {
         std::mem::swap(&mut self.item.rows, &mut self.item.cols);
     }
 
-    pub fn move_to(&mut self, dst: (u32, u32)) {
-        self.r = dst.0;
-        self.c = dst.1;
+    pub fn move_to(&mut self, dst: Loc) {
+        self.loc = dst;
     }
 }

@@ -1,12 +1,12 @@
-use crate::items::{Item, PackedItem};
+use crate::items::{Item, Loc, PackedItem};
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct MapPack {
     rows: u32,
     cols: u32,
-    items: HashMap<(u32, u32), PackedItem>,
+    items: BTreeMap<Loc, PackedItem>,
 }
 
 impl MapPack {
@@ -22,15 +22,15 @@ impl MapPack {
         MapPack {
             rows,
             cols,
-            items: HashMap::new(),
+            items: BTreeMap::new(),
         }
     }
 
-    fn grab_item(&self, loc: (u32, u32)) -> Option<&PackedItem> {
+    fn grab_item(&self, loc: &Loc) -> Option<&PackedItem> {
         self.items.get(&loc)
     }
 
-    fn find_item(&self, loc: (u32, u32)) -> Option<&PackedItem> {
+    fn find_item(&self, loc: &Loc) -> Option<&PackedItem> {
         for packed_item in self.items.values() {
             if packed_item.contains(loc) {
                 return Some(packed_item);
@@ -40,10 +40,10 @@ impl MapPack {
     }
 
     fn item_placement_exceeds_bounds(&self, item: &PackedItem) -> bool {
-        return item.r() >= self.rows
-            || item.c() >= self.cols
-            || item.r() + item.rows() > self.rows
-            || item.c() + item.cols() > self.cols;
+        return item.row() >= self.rows
+            || item.col() >= self.cols
+            || item.row() + item.rows() > self.rows
+            || item.col() + item.cols() > self.cols;
     }
 
     fn item_placement_intersects_contents(&self, item: &PackedItem) -> bool {
@@ -63,8 +63,8 @@ impl MapPack {
             || self.item_placement_intersects_contents(item);
     }
 
-    pub fn add_item(&mut self, item: Item, loc: (u32, u32)) -> Result<(), String> {
-        let tentative = PackedItem::new(loc.0, loc.1, item);
+    pub fn add_item(&mut self, item: Item, loc: Loc) -> Result<Loc, String> {
+        let tentative = PackedItem::new(loc, item);
 
         // Invalid loc for this Pack.
         if self.item_placement_exceeds_bounds(&tentative) {
@@ -76,36 +76,44 @@ impl MapPack {
             return Err("Item intersects existing Pack contents.".to_string());
         }
 
-        self.items.insert((tentative.r(), tentative.c()), tentative);
-        Ok(())
+        let result_loc = tentative.loc();
+        self.items.insert(result_loc.clone(), tentative);
+        Ok(result_loc)
     }
 
-    pub fn remove_item(&mut self, loc: (u32, u32)) -> Option<PackedItem> {
+    pub fn remove_item(&mut self, loc: Loc) -> Option<PackedItem> {
         self.items.remove(&loc)
     }
 
-    pub fn transpose_item(&mut self, loc: (u32, u32)) -> Result<(), String> {
-        if !self.items.contains_key(&loc) {
-            return Ok(());
-        }
+    pub fn transpose_item(&mut self, loc: Loc) -> Result<Loc, String> {
         // Do the tranposition.
-        self.items.get_mut(&loc).unwrap().transpose();
+        match self.items.get_mut(&loc) {
+            Some(item) => {
+                item.transpose();
+            }
+            None => {
+                return Err("Invalid location".to_string());
+            }
+        }
 
         // Undo the transposition if placement is invalid.
         if self.item_placement_is_invalid(&self.items[&loc]) {
             self.items.get_mut(&loc).unwrap().transpose();
             return Err("Invalid transposition.".to_string());
         }
-        Ok(())
+        Ok(loc)
     }
 
-    pub fn move_item(&mut self, src: (u32, u32), dst: (u32, u32)) -> Result<(), String> {
-        if !self.items.contains_key(&src) {
-            return Ok(());
-        }
-
+    pub fn move_item(&mut self, src: Loc, dst: Loc) -> Result<Loc, String> {
         // Do the move.
-        self.items.get_mut(&src).unwrap().move_to(dst);
+        match self.items.get_mut(&src) {
+            Some(item) => {
+                item.move_to(dst.clone());
+            }
+            None => {
+                return Err("Invalid loc".to_string());
+            }
+        }
 
         // Undo the move if placement is invalid.
         if self.item_placement_is_invalid(&self.items[&src]) {
@@ -114,8 +122,8 @@ impl MapPack {
         }
 
         let item = self.items.remove(&src).unwrap();
-        self.items.insert(dst, item);
-        Ok(())
+        self.items.insert(dst.clone(), item);
+        Ok(dst)
     }
 }
 
@@ -126,7 +134,7 @@ impl fmt::Display for MapPack {
         for r in 0..self.rows {
             for c in 0..self.cols {
                 let mut next_symbol: char = ' ';
-                if let Some(packed_item) = self.find_item((r, c)) {
+                if let Some(packed_item) = self.find_item(&Loc::new(r, c)) {
                     next_symbol = packed_item.symbol();
                 }
                 write!(f, "{}{}", SEP, next_symbol)?;
@@ -146,7 +154,7 @@ mod tests {
         let mut pack = MapPack::new(1, 1);
         let pebble = Item::new(1, 1, '.');
 
-        let result = pack.add_item(pebble, (0, 0));
+        let result = pack.add_item(pebble, Loc::new(0, 0));
         assert!(result.is_ok());
     }
 
@@ -155,7 +163,7 @@ mod tests {
         let mut pack = MapPack::new(1, 1);
         let pebble = Item::new(1, 1, '.');
 
-        let result = pack.add_item(pebble, (1, 0));
+        let result = pack.add_item(pebble, Loc::new(1, 0));
         assert!(result.is_err());
     }
 
@@ -165,10 +173,10 @@ mod tests {
         let stick = Item::new(1, 2, '*');
         let stone = Item::new(2, 2, '@');
 
-        let result = pack.add_item(stick, (0, 0));
+        let result = pack.add_item(stick, Loc::new(0, 0));
         assert!(result.is_ok());
 
-        let result = pack.add_item(stone, (0, 0));
+        let result = pack.add_item(stone, Loc::new(0, 0));
         assert!(result.is_err());
     }
 
@@ -177,7 +185,7 @@ mod tests {
         let mut pack = MapPack::new(1, 1);
         let cat = Item::new(3, 2, 'c');
 
-        let result = pack.add_item(cat, (0, 0));
+        let result = pack.add_item(cat, Loc::new(0, 0));
         assert!(result.is_err());
     }
 
@@ -186,10 +194,10 @@ mod tests {
         let mut pack = MapPack::new(3, 3);
         let stick = Item::new(1, 3, '*');
 
-        let result = pack.add_item(stick, (0, 0));
+        let result = pack.add_item(stick, Loc::new(0, 0));
         assert!(result.is_ok());
 
-        let result = pack.transpose_item((0, 0));
+        let result = pack.transpose_item(result.unwrap());
         assert!(result.is_ok());
     }
 
@@ -199,25 +207,20 @@ mod tests {
         let stick = Item::new(1, 3, '*');
         let stone = Item::new(1, 1, '@');
 
-        let result = pack.add_item(stick, (0, 0));
-        assert!(result.is_ok());
+        let add_stick = pack.add_item(stick, Loc::new(0, 0));
+        assert!(add_stick.is_ok());
 
-        let result = pack.add_item(stone, (1, 0));
-        assert!(result.is_ok());
+        let add_stone = pack.add_item(stone, Loc::new(1, 0));
+        assert!(add_stone.is_ok());
 
-        let result = pack.transpose_item((0, 0));
+        let result = pack.transpose_item(add_stick.unwrap());
         assert!(result.is_err());
     }
 
     #[test]
     fn remove_item_from_unoccupied_space_returns_none() {
         let mut pack = MapPack::new(3, 3);
-        let stone = Item::new(1, 1, '*');
-
-        let result = pack.add_item(stone, (0, 0));
-        assert!(result.is_ok());
-
-        let removed = pack.remove_item((1, 1));
+        let removed = pack.remove_item(Loc::new(0, 0));
         assert!(removed.is_none());
     }
 
@@ -226,10 +229,10 @@ mod tests {
         let mut pack = MapPack::new(3, 3);
         let stone = Item::new(1, 1, '*');
 
-        let result = pack.add_item(stone.clone(), (0, 0));
+        let result = pack.add_item(stone.clone(), Loc::new(0, 0));
         assert!(result.is_ok());
 
-        let removed = pack.remove_item((0, 0));
+        let removed = pack.remove_item(result.unwrap());
         assert!(matches!(removed, stone));
     }
 
@@ -238,10 +241,10 @@ mod tests {
         let mut pack = MapPack::new(1, 1);
         let stone = Item::new(1, 1, '*');
 
-        let result = pack.add_item(stone, (0, 0));
+        let result = pack.add_item(stone, Loc::new(0, 0));
         assert!(result.is_ok());
 
-        let result = pack.move_item((0, 0), (5, 5));
+        let result = pack.move_item(result.unwrap(), Loc::new(5, 5));
         assert!(result.is_err());
     }
 
@@ -250,7 +253,7 @@ mod tests {
         let mut pack = MapPack::new(1, 2);
         let a = Item::new(1, 1, '^');
 
-        let result = pack.add_item(a, (0, 0));
+        let result = pack.add_item(a, Loc::new(0, 0));
         assert!(result.is_ok());
     }
 }
