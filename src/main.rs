@@ -4,9 +4,10 @@ mod items;
 mod packs;
 
 use crate::items::{Item, Loc};
-use crate::packs::{DensePack, MapPack};
+use crate::packs::DensePack as Pack;
 
 use rand::prelude::*;
+use std::io::{stdin, stdout, Write};
 use std::time::Instant;
 
 fn rand_loc(rng: &mut ThreadRng, rows: u32, cols: u32) -> Loc {
@@ -16,7 +17,7 @@ fn rand_loc(rng: &mut ThreadRng, rows: u32, cols: u32) -> Loc {
 fn benchmark(rows: u32, cols: u32, iters: usize) {
     let mut rng = rand::thread_rng();
 
-    let mut pack = DensePack::new(rows, cols);
+    let mut pack = Pack::new(rows, cols);
 
     let mut locs: Vec<Loc> = Vec::new();
 
@@ -118,8 +119,91 @@ fn benchmark(rows: u32, cols: u32, iters: usize) {
     //    println!("Final state:\n{}", pack);
 }
 
+enum Command {
+    Exit,
+    Help,
+    ShowItems,
+    ShowPack,
+    Create,
+    Add,
+    Remove,
+    Transpose,
+    Move,
+}
+
+fn help_message() -> &'static str {
+    let help: &'static str = "
+Commands:\n\
+exit\n\
+help\n\
+show items\n\
+show pack\n\
+create <name> <rows> <cols> <symbol>\n\
+add <pack_name> <item_name> <row> <col>\n\
+remove <pack_name> <row> <col>\n\
+transpose <pack_name> <row> <col>\n\
+move <pack_name> <src_row> <src_col> <dst_row> <dst_col>\n\
+";
+    help
+}
+
+fn parse_command(buffer: String) -> Result<Command, String> {
+    let trimmed = buffer.trim();
+
+    let result = match trimmed {
+        "exit" => Ok(Command::Exit),
+        "help" => Ok(Command::Help),
+        _ => Err("Unknown command".to_string()),
+    };
+    result
+}
+
+fn interact(pack: &crate::Pack) -> bool {
+    print!(">>> ");
+    stdout().flush().unwrap();
+
+    let mut buffer = String::new();
+    let io_res = stdin().read_line(&mut buffer);
+
+    // Unlikely error reading from stdin.
+    if io_res.is_err() {
+        return false;
+    }
+
+    let command = parse_command(buffer);
+
+    if command.is_err() {
+        return false;
+    }
+
+    match command.unwrap() {
+        Command::Exit => {
+            return false;
+        }
+        Command::Help => {
+            println!("{}", help_message());
+            return true;
+        }
+        Command::ShowItems => todo!(),
+        Command::ShowPack => todo!(),
+        Command::Create => todo!(),
+        Command::Add => todo!(),
+        Command::Remove => todo!(),
+        Command::Transpose => todo!(),
+        Command::Move => todo!(),
+    }
+}
+
 fn main() {
-    benchmark(20, 20, 1_000_000);
+    let pack = Pack::new(10, 10);
+    loop {
+        let decision = interact(&pack);
+        if decision == false {
+            break;
+        }
+    }
+
+    //benchmark(20, 20, 1_000_000);
 
     // // Initialize the Pack
     // let mut pack = GridPack::new(5, 5);
