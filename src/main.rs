@@ -3,12 +3,13 @@
 mod items;
 mod packs;
 
-use crate::items::{Item, Loc};
-use crate::packs::DensePack as Pack;
-
 use rand::prelude::*;
+use std::collections::HashMap;
 use std::io::{stdin, stdout, Write};
 use std::time::Instant;
+
+use crate::items::{Item, Loc};
+use crate::packs::DensePack as Pack;
 
 fn rand_loc(rng: &mut ThreadRng, rows: u32, cols: u32) -> Loc {
     Loc::new(rng.gen_range(0..rows), rng.gen_range(0..cols))
@@ -116,19 +117,7 @@ fn benchmark(rows: u32, cols: u32, iters: usize) {
     for (i, entry) in benchmark_data.iter().enumerate() {
         println!("{}: {}, {}", i, entry.0, entry.1);
     }
-    //    println!("Final state:\n{}", pack);
-}
-
-enum Command {
-    Exit,
-    Help,
-    ShowItems,
-    ShowPack,
-    Create,
-    Add,
-    Remove,
-    Transpose,
-    Move,
+    println!("Final state:\n{}", pack);
 }
 
 fn help_message() -> &'static str {
@@ -136,9 +125,9 @@ fn help_message() -> &'static str {
 Commands:\n\
 exit\n\
 help\n\
-show items\n\
-show pack\n\
-create <name> <rows> <cols> <symbol>\n\
+items\n\
+pack\n\
+new <name> <rows> <cols> <symbol>\n\
 add <pack_name> <item_name> <row> <col>\n\
 remove <pack_name> <row> <col>\n\
 transpose <pack_name> <row> <col>\n\
@@ -147,63 +136,118 @@ move <pack_name> <src_row> <src_col> <dst_row> <dst_col>\n\
     help
 }
 
-fn parse_command(buffer: String) -> Result<Command, String> {
-    let trimmed = buffer.trim();
-
-    let result = match trimmed {
-        "exit" => Ok(Command::Exit),
-        "help" => Ok(Command::Help),
-        _ => Err("Unknown command".to_string()),
-    };
-    result
-}
-
-fn interact(pack: &crate::Pack) -> bool {
-    print!(">>> ");
-    stdout().flush().unwrap();
-
+fn interact(items: &mut HashMap<String, crate::Item>, pack: &mut crate::Pack) -> bool {
+    // Read from stdin.
     let mut buffer = String::new();
     let io_res = stdin().read_line(&mut buffer);
-
-    // Unlikely error reading from stdin.
     if io_res.is_err() {
         return false;
     }
 
-    let command = parse_command(buffer);
+    // Some pre-processing.
+    let mut words = buffer.trim().split_whitespace();
 
-    if command.is_err() {
-        return false;
+    // Consume the command token.
+    let command = words.next();
+    if command.is_none() {
+        return true;
     }
 
     match command.unwrap() {
-        Command::Exit => {
+        "exit" => {
             return false;
         }
-        Command::Help => {
+        "help" => {
             println!("{}", help_message());
             return true;
         }
-        Command::ShowItems => todo!(),
-        Command::ShowPack => todo!(),
-        Command::Create => todo!(),
-        Command::Add => todo!(),
-        Command::Remove => todo!(),
-        Command::Transpose => todo!(),
-        Command::Move => todo!(),
+        "items" => {
+            print!("Items: [ ");
+            for (name, _) in items.iter() {
+                print!("{} ", name);
+            }
+            println!("]");
+            return true;
+        }
+        "pack" => {
+            println!("{}", pack);
+            return true;
+        }
+        "new" => 'new: {
+            let name = words.next();
+            if name.is_none() {
+                println!("Expected an item name");
+                break 'new;
+            }
+
+            let symbol = words.next();
+            if symbol.is_none() {
+                println!("Expected an item symbol character");
+                break 'new;
+            }
+            let symbol = symbol.unwrap().parse::<char>();
+            if symbol.is_err() {
+                println!("Expected an item symbol character");
+                break 'new;
+            }
+
+            let row = words.next();
+            if row.is_none() {
+                println!("Expected a row value");
+                break 'new;
+            }
+            let row = row.unwrap().parse::<u32>();
+            if row.is_err() {
+                println!("Expected a non-negative integer row value");
+                break 'new;
+            }
+
+            let col = words.next();
+            if col.is_none() {
+                println!("Expected a col value");
+                break 'new;
+            }
+            let col = col.unwrap().parse::<u32>();
+            if col.is_err() {
+                println!("Expected a non-negative integer col value");
+                break 'new;
+            }
+            let item = Item::new(row.unwrap(), col.unwrap(), symbol.unwrap());
+            items.insert(name.unwrap().to_string(), item);
+        }
+        "add" => {
+            todo!();
+        }
+        "remove" => {
+            todo!();
+        }
+        "tranpose" => {
+            todo!();
+        }
+        "move" => {
+            todo!();
+        }
+        _ => {
+            println!("Unknown command");
+        }
     }
+    return true;
 }
 
 fn main() {
-    let pack = Pack::new(10, 10);
+    let mut pack = Pack::new(10, 10);
+    let mut items: HashMap<String, Item> = HashMap::new();
     loop {
-        let decision = interact(&pack);
+        print!(">>> ");
+        stdout().flush().unwrap();
+
+        let decision = interact(&mut items, &mut pack);
         if decision == false {
             break;
         }
     }
 
-    //benchmark(20, 20, 1_000_000);
+    // benchmark(20, 20, 1_000_000);
 
     // // Initialize the Pack
     // let mut pack = GridPack::new(5, 5);
