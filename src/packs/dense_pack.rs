@@ -33,7 +33,16 @@ impl DensePack {
         None
     }
 
-    fn grab_item_index(&self, loc: &Loc) -> Option<usize> {
+    fn grab_item_index(&self, name: &str) -> Option<usize> {
+        for (idx, packed_item) in self.items.iter().enumerate() {
+            if packed_item.name() == name {
+                return Some(idx);
+            }
+        }
+        None
+    }
+
+    fn grab_item_index_at(&self, loc: &Loc) -> Option<usize> {
         for (idx, packed_item) in self.items.iter().enumerate() {
             if packed_item.contains(loc) {
                 return Some(idx);
@@ -78,15 +87,22 @@ impl DensePack {
         Ok(loc)
     }
 
-    pub fn remove_item(&mut self, loc: Loc) -> Option<PackedItem> {
-        if let Some(idx) = self.grab_item_index(&loc) {
+    pub fn remove_item(&mut self, name: &str) -> Option<PackedItem> {
+        if let Some(idx) = self.grab_item_index(name) {
             return Some(self.items.swap_remove(idx));
         }
         None
     }
 
-    pub fn transpose_item(&mut self, loc: Loc) -> Result<Loc, String> {
-        if let Some(idx) = self.grab_item_index(&loc) {
+    pub fn remove_item_at(&mut self, loc: Loc) -> Option<PackedItem> {
+        if let Some(idx) = self.grab_item_index_at(&loc) {
+            return Some(self.items.swap_remove(idx));
+        }
+        None
+    }
+
+    pub fn transpose_item(&mut self, name: &str) -> Result<Loc, String> {
+        if let Some(idx) = self.grab_item_index(&name) {
             // Do the tranposition.
             self.items[idx].transpose();
 
@@ -100,8 +116,40 @@ impl DensePack {
         Err("No item at the given location".to_string())
     }
 
-    pub fn move_item(&mut self, src: Loc, dst: Loc) -> Result<Loc, String> {
-        if let Some(idx) = self.grab_item_index(&src) {
+    pub fn transpose_item_at(&mut self, loc: Loc) -> Result<Loc, String> {
+        if let Some(idx) = self.grab_item_index_at(&loc) {
+            // Do the tranposition.
+            self.items[idx].transpose();
+
+            // Undo the transposition if placement is invalid.
+            if self.item_placement_is_invalid(&self.items[idx]) {
+                self.items[idx].transpose();
+                return Err("Invalid transposition.".to_string());
+            }
+            return Ok(self.items[idx].loc());
+        }
+        Err("No item at the given location".to_string())
+    }
+
+    pub fn move_item(&mut self, name: &str, dst: Loc) -> Result<Loc, String> {
+        if let Some(idx) = self.grab_item_index(name) {
+            let src = self.items[idx].loc();
+
+            // Do the move.
+            self.items[idx].move_to(dst);
+
+            // Undo the move if placement is invalid.
+            if self.item_placement_is_invalid(&self.items[idx]) {
+                self.items[idx].move_to(src);
+                return Err("Invalid move".to_string());
+            }
+            return Ok(src);
+        }
+        Err("No item at the given location".to_string())
+    }
+
+    pub fn move_item_at(&mut self, src: Loc, dst: Loc) -> Result<Loc, String> {
+        if let Some(idx) = self.grab_item_index_at(&src) {
             // Do the move.
             self.items[idx].move_to(dst);
 
@@ -141,7 +189,7 @@ mod tests {
     #[test]
     fn add_1x1_item_to_1x1_pack() {
         let mut pack = DensePack::new(1, 1);
-        let pebble = Item::new(1, 1, '.');
+        let pebble = Item::new("pebble", 1, 1, '.');
 
         let result = pack.add_item(pebble, Loc::new(0, 0));
         assert!(result.is_ok());
@@ -150,7 +198,7 @@ mod tests {
     #[test]
     fn add_item_with_out_of_bounds_coordinates_is_an_error() {
         let mut pack = DensePack::new(1, 1);
-        let pebble = Item::new(1, 1, '.');
+        let pebble = Item::new("pebble", 1, 1, '.');
 
         let result = pack.add_item(pebble, Loc::new(1, 0));
         assert!(result.is_err());
@@ -159,8 +207,8 @@ mod tests {
     #[test]
     fn add_item_intersecting_existing_item_is_an_error() {
         let mut pack = DensePack::new(3, 3);
-        let stick = Item::new(1, 2, '*');
-        let stone = Item::new(2, 2, '@');
+        let stick = Item::new("stick", 1, 2, '*');
+        let stone = Item::new("stone", 2, 2, '@');
 
         let result = pack.add_item(stick, Loc::new(0, 0));
         assert!(result.is_ok());
@@ -172,7 +220,7 @@ mod tests {
     #[test]
     fn add_item_that_exceeds_pack_size_is_an_error() {
         let mut pack = DensePack::new(1, 1);
-        let cat = Item::new(3, 2, 'c');
+        let cat = Item::new("cat", 3, 2, 'c');
 
         let result = pack.add_item(cat, Loc::new(0, 0));
         assert!(result.is_err());
@@ -181,20 +229,20 @@ mod tests {
     #[test]
     fn tranpose_item_valid_transposition_succeeds() {
         let mut pack = DensePack::new(3, 3);
-        let stick = Item::new(1, 3, '*');
+        let stick = Item::new("stick", 1, 3, '*');
 
         let result = pack.add_item(stick, Loc::new(0, 0));
         assert!(result.is_ok());
 
-        let result = pack.transpose_item(result.unwrap());
+        let result = pack.transpose_item_at(result.unwrap());
         assert!(result.is_ok());
     }
 
     #[test]
     fn transpose_item_causing_intersection_is_an_error() {
         let mut pack = DensePack::new(3, 3);
-        let stick = Item::new(1, 3, '*');
-        let stone = Item::new(1, 1, '@');
+        let stick = Item::new("stick", 1, 3, '*');
+        let stone = Item::new("stone", 1, 1, '@');
 
         let add_stick = pack.add_item(stick, Loc::new(0, 0));
         assert!(add_stick.is_ok());
@@ -202,38 +250,38 @@ mod tests {
         let add_stone = pack.add_item(stone, Loc::new(1, 0));
         assert!(add_stone.is_ok());
 
-        let result = pack.transpose_item(add_stick.unwrap());
+        let result = pack.transpose_item_at(add_stick.unwrap());
         assert!(result.is_err());
     }
 
     #[test]
     fn remove_item_from_unoccupied_space_returns_none() {
         let mut pack = DensePack::new(3, 3);
-        let removed = pack.remove_item(Loc::new(0, 0));
+        let removed = pack.remove_item_at(Loc::new(0, 0));
         assert!(removed.is_none());
     }
 
     #[test]
     fn remove_item_at_occupied_location_returns_some_packed_item() {
         let mut pack = DensePack::new(3, 3);
-        let stone = Item::new(1, 1, '*');
+        let stone = Item::new("stone", 1, 1, '*');
 
         let result = pack.add_item(stone.clone(), Loc::new(0, 0));
         assert!(result.is_ok());
 
-        let removed = pack.remove_item(result.unwrap());
+        let removed = pack.remove_item_at(result.unwrap());
         assert!(matches!(removed, stone));
     }
 
     #[test]
     fn move_item_to_out_of_bounds_location_is_an_error() {
         let mut pack = DensePack::new(1, 1);
-        let stone = Item::new(1, 1, '*');
+        let stone = Item::new("stone", 1, 1, '*');
 
         let result = pack.add_item(stone, Loc::new(0, 0));
         assert!(result.is_ok());
 
-        let result = pack.move_item(result.unwrap(), Loc::new(5, 5));
+        let result = pack.move_item_at(result.unwrap(), Loc::new(5, 5));
         assert!(result.is_err());
     }
 }

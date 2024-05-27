@@ -34,6 +34,7 @@ fn benchmark(rows: u32, cols: u32, iters: usize) {
 
                 let symbol: u8 = rng.gen_range(33..127);
                 let item = Item::new(
+                    String::from(""),
                     rng.gen_range(0..rows / 2),
                     rng.gen_range(0..cols / 2),
                     symbol as char,
@@ -128,15 +129,15 @@ help\n\
 items\n\
 pack\n\
 new <name> <rows> <cols> <symbol>\n\
-add <pack_name> <item_name> <row> <col>\n\
-remove <pack_name> <row> <col>\n\
-transpose <pack_name> <row> <col>\n\
-move <pack_name> <src_row> <src_col> <dst_row> <dst_col>\n\
+add <name> <row> <col>\n\
+remove <name>\n\
+transpose <name>\n\
+move <name> <dst_row> <dst_col>\n\
 ";
     help
 }
 
-fn interact(items: &mut HashMap<String, crate::Item>, pack: &mut crate::Pack) -> bool {
+fn interact(items: &mut Vec<Item>, pack: &mut Pack) -> bool {
     // Read from stdin.
     let mut buffer = String::new();
     let io_res = stdin().read_line(&mut buffer);
@@ -163,8 +164,8 @@ fn interact(items: &mut HashMap<String, crate::Item>, pack: &mut crate::Pack) ->
         }
         "items" => {
             print!("Items: [ ");
-            for (name, _) in items.iter() {
-                print!("{} ", name);
+            for item in items {
+                print!("{} ", item.name());
             }
             println!("]");
             return true;
@@ -174,49 +175,85 @@ fn interact(items: &mut HashMap<String, crate::Item>, pack: &mut crate::Pack) ->
             return true;
         }
         "new" => 'new: {
-            let name = words.next();
-            if name.is_none() {
-                println!("Expected an item name");
+            let name = match words.next() {
+                Some(name) => name,
+                None => {
+                    println!("Expected an item name.");
+                    break 'new;
+                }
+            };
+
+            if items.contains_key(name) {
+                println!("'{}' already exists.", name);
                 break 'new;
             }
 
-            let symbol = words.next();
-            if symbol.is_none() {
-                println!("Expected an item symbol character");
-                break 'new;
-            }
-            let symbol = symbol.unwrap().parse::<char>();
-            if symbol.is_err() {
-                println!("Expected an item symbol character");
-                break 'new;
-            }
+            let symbol = match words.next().and_then(|s| s.parse::<char>().ok()) {
+                Some(symbol) => symbol,
+                None => {
+                    println!("Expected an item symbol character.");
+                    break 'new;
+                }
+            };
 
-            let row = words.next();
-            if row.is_none() {
-                println!("Expected a row value");
-                break 'new;
-            }
-            let row = row.unwrap().parse::<u32>();
-            if row.is_err() {
-                println!("Expected a non-negative integer row value");
-                break 'new;
-            }
+            let rows = match words.next().and_then(|s| s.parse::<u32>().ok()) {
+                Some(rows) => rows,
+                None => {
+                    println!("Expected a non-negative integer number of rows.");
+                    break 'new;
+                }
+            };
 
-            let col = words.next();
-            if col.is_none() {
-                println!("Expected a col value");
-                break 'new;
-            }
-            let col = col.unwrap().parse::<u32>();
-            if col.is_err() {
-                println!("Expected a non-negative integer col value");
-                break 'new;
-            }
-            let item = Item::new(row.unwrap(), col.unwrap(), symbol.unwrap());
-            items.insert(name.unwrap().to_string(), item);
+            let cols = match words.next().and_then(|s| s.parse::<u32>().ok()) {
+                Some(cols) => cols,
+                None => {
+                    println!("Expected a non-negative integer number of columns.");
+                    break 'new;
+                }
+            };
+
+            let item = Item::new(name, rows, cols, symbol);
+            items.insert(name.to_owned(), item);
         }
-        "add" => {
-            todo!();
+        "add" => 'add: {
+            let name = match words.next() {
+                Some(name) => name.to_owned(),
+                None => {
+                    println!("Expected an item name.");
+                    break 'add;
+                }
+            };
+
+            if !items.contains_key(&name) {
+                println!(
+                    "'{}' does not exist. Add this item with the 'new' command.",
+                    name
+                );
+                break 'add;
+            }
+
+            let item = items.get(&name).unwrap();
+
+            let row = match words.next().and_then(|s| s.parse::<u32>().ok()) {
+                Some(row) => row,
+                None => {
+                    println!("Expected a non-negative integer row coordinate value.");
+                    break 'add;
+                }
+            };
+
+            let col = match words.next().and_then(|s| s.parse::<u32>().ok()) {
+                Some(col) => col,
+                None => {
+                    println!("Expected a non-negative integer column coordinate value.");
+                    break 'add;
+                }
+            };
+
+            let result = pack.add_item(item.clone(), Loc::new(row, col));
+            if result.is_err() {
+                println!("Item insertion failed: {}", result.err().unwrap());
+            }
         }
         "remove" => {
             todo!();
@@ -236,7 +273,7 @@ fn interact(items: &mut HashMap<String, crate::Item>, pack: &mut crate::Pack) ->
 
 fn main() {
     let mut pack = Pack::new(10, 10);
-    let mut items: HashMap<String, Item> = HashMap::new();
+    let mut items: Vec<Item> = Vec::new();
     loop {
         print!(">>> ");
         stdout().flush().unwrap();
@@ -248,45 +285,4 @@ fn main() {
     }
 
     // benchmark(20, 20, 1_000_000);
-
-    // // Initialize the Pack
-    // let mut pack = GridPack::new(5, 5);
-    // println!("{}", pack);
-
-    // // Add a 'stick'
-    // let stick = Item::new(1, 3, '.');
-    // let result = pack.add_item(stick, (1, 2));
-    // if result.is_err() {
-    //     println!("{}", result.err().unwrap());
-    // }
-    // println!("{}", pack);
-
-    // // Add a 'rock'
-    // let rock = Item::new(2, 2, '@');
-    // let result = pack.add_item(rock, (2, 2));
-    // if result.is_err() {
-    //     println!("{}", result.err().unwrap());
-    // }
-    // println!("{}", pack);
-
-    // // transpose the stick, this will result in an error.
-    // let result = pack.transpose_item((1, 2));
-    // if result.is_err() {
-    //     println!("{}", result.err().unwrap());
-    // }
-    // println!("{}", pack);
-
-    // // Move the stick away from the rock.
-    // let result = pack.move_item((1, 2), (0, 0));
-    // if result.is_err() {
-    //     println!("{}", result.err().unwrap());
-    // }
-    // println!("{}", pack);
-
-    // // transpose the stick, this will result in an error.
-    // let result = pack.transpose_item((0, 0));
-    // if result.is_err() {
-    //     println!("{}", result.err().unwrap());
-    // }
-    // println!("{}", pack);
 }

@@ -1,12 +1,13 @@
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Item {
+    name: String,
     rows: u32,
     cols: u32,
     symbol: char,
 }
 
 impl Item {
-    pub fn new(rows: u32, cols: u32, symbol: char) -> Self {
+    pub fn new(name: &str, rows: u32, cols: u32, symbol: char) -> Self {
         let mut rows = rows;
         let mut cols = cols;
         if rows == 0 {
@@ -16,10 +17,15 @@ impl Item {
             cols = 1;
         }
         Item {
-            rows: rows,
-            cols: cols,
-            symbol: symbol,
+            name: String::from(name),
+            rows,
+            cols,
+            symbol,
         }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn rows(&self) -> u32 {
@@ -57,8 +63,8 @@ impl Loc {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PackedItem {
-    loc: Loc,
     item: Item,
+    loc: Loc,
 }
 
 impl PackedItem {
@@ -66,12 +72,12 @@ impl PackedItem {
         Self { loc, item }
     }
 
-    pub fn loc(&self) -> Loc {
-        self.loc.clone()
+    pub fn item(self) -> Item {
+        self.item
     }
 
-    pub fn item(&self) -> Item {
-        self.item
+    pub fn loc(&self) -> Loc {
+        self.loc.clone()
     }
 
     pub fn row(&self) -> u32 {
@@ -82,16 +88,20 @@ impl PackedItem {
         self.loc.col
     }
 
+    pub fn name(&self) -> &str {
+        &self.item.name()
+    }
+
     pub fn rows(&self) -> u32 {
-        self.item.rows
+        self.item.rows()
     }
 
     pub fn cols(&self) -> u32 {
-        self.item.cols
+        self.item.cols()
     }
 
     pub fn symbol(&self) -> char {
-        self.item.symbol
+        self.item.symbol()
     }
 
     pub fn intersects(&self, other: &Self) -> bool {
