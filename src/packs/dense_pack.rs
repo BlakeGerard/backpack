@@ -24,6 +24,13 @@ impl DensePack {
         }
     }
 
+    pub fn take_item(&mut self, loc: &Loc) -> Option<Item> {
+        if let Some(idx) = self.grab_item_index_at(loc) {
+            return Some(self.items.swap_remove(idx).unpack());
+        }
+        None
+    }
+
     fn grab_item(&self, loc: &Loc) -> Option<&PackedItem> {
         for packed_item in &self.items {
             if packed_item.contains(loc) {

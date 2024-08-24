@@ -72,7 +72,7 @@ impl PackedItem {
         Self { loc, item }
     }
 
-    pub fn item(self) -> Item {
+    pub fn unpack(self) -> Item {
         self.item
     }
 
